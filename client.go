@@ -1,9 +1,10 @@
 package byor
 
 import (
-	"log"
 	"net"
 )
+
+var clog = newLogger("[CLIENT]")
 
 func Client(port string) error {
 	addr, addrErr := net.ResolveTCPAddr("tcp", port)
@@ -19,17 +20,17 @@ func Client(port string) error {
 
 	wr, wErr := tcpConn.Write([]byte("Hello from client!"))
 	if wErr != nil {
-		log.Fatalf("[ERROR] Writing to connection %v\n", wErr)
+		clog.errorf("Writing to connection %v\n", wErr)
 	}
-	log.Printf("[DEBUG] Wrote %v bytes to connection", wr)
+	clog.debugf("Wrote %v bytes to connection", wr)
 
 	data := make([]byte, 2048)
 	br, rErr := tcpConn.Read(data)
 	if rErr != nil {
-		log.Printf("[ERROR] Reading from connection %v\n", rErr)
+		clog.errorf("Reading from connection %v", rErr)
 	}
-	log.Printf("[DEBUG] Read %v bytes from connection\n", br)
-	log.Printf("[DEBUG] Message from server %v\n", string(data))
+	clog.debugf("Read %v bytes from connection", br)
+	clog.debugf("Message from server %v", string(data))
 
 	return nil
 }
