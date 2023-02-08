@@ -6,6 +6,12 @@ import (
 	"time"
 )
 
+const (
+	MAX_HEADER_SIZE  = 4
+	MAX_COMMAND_SIZE = 4096
+	MAX_BUFFER_SIZE  = MAX_HEADER_SIZE + MAX_COMMAND_SIZE + 1
+)
+
 var slog = newLogger("[SERVER]")
 
 func Server(port string) error {
@@ -44,7 +50,7 @@ func Server(port string) error {
 				defer conn.Close()
 				defer wg.Done()
 
-				data := make([]byte, 2048)
+				data := make([]byte, MAX_BUFFER_SIZE)
 				br, rErr := conn.Read(data)
 				if rErr != nil {
 					slog.errorf("Reading from connection %v", rErr)
