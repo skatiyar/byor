@@ -1,11 +1,18 @@
 package byor
 
 import (
-	"log"
 	"net"
 	"sync"
 	"time"
 )
+
+const (
+	MAX_HEADER_SIZE  = 4
+	MAX_COMMAND_SIZE = 4096
+	MAX_BUFFER_SIZE  = MAX_HEADER_SIZE + MAX_COMMAND_SIZE + 1
+)
+
+var slog = newLogger("[SERVER]")
 
 func Server(port string) error {
 	var wg sync.WaitGroup
@@ -20,12 +27,12 @@ func Server(port string) error {
 	if listenerErr != nil {
 		return listenerErr
 	}
-	log.Printf("[DEBUG] Listening on port %v", port)
+	slog.debugf("Listening on port %v", port)
 
 	for {
 		select {
 		case <-quit:
-			log.Printf("[DEBUG] Got close siginal, waiting for connections to drain")
+			slog.debugf("Got close siginal, waiting for connections to drain")
 			tcpListener.Close()
 			wg.Wait()
 			return nil
@@ -34,7 +41,7 @@ func Server(port string) error {
 			tcpConn, connErr := tcpListener.AcceptTCP()
 			if connErr != nil {
 				if opErr, ok := connErr.(*net.OpError); !ok || !opErr.Timeout() {
-					log.Printf("[ERROR] %v\n", connErr)
+					slog.errorf("%v", connErr)
 				}
 				continue
 			}
@@ -43,19 +50,19 @@ func Server(port string) error {
 				defer conn.Close()
 				defer wg.Done()
 
-				data := make([]byte, 2048)
+				data := make([]byte, MAX_BUFFER_SIZE)
 				br, rErr := conn.Read(data)
 				if rErr != nil {
-					log.Printf("[ERROR] Reading from connection %v\n", rErr)
+					slog.errorf("Reading from connection %v", rErr)
 				}
-				log.Printf("[DEBUG] Read %v bytes from connection\n", br)
-				log.Printf("[DEBUG] Message from client %v\n", string(data))
+				slog.debugf("Read %v bytes from connection", br)
+				slog.debugf("Message from client %v", string(data))
 
 				wr, wErr := conn.Write([]byte("Hello from server!"))
 				if wErr != nil {
-					log.Printf("[ERROR] Writing to connection %v\n", wErr)
+					slog.errorf("Writing to connection %v", wErr)
 				}
-				log.Printf("[DEBUG] Wrote %v bytes to connection", wr)
+				slog.debugf("Wrote %v bytes to connection", wr)
 			}(tcpConn)
 		}
 	}
