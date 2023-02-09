@@ -1,15 +1,12 @@
 package byor
 
 import (
+	"errors"
+	"io"
 	"net"
 	"sync"
+	"syscall"
 	"time"
-)
-
-const (
-	MAX_HEADER_SIZE  = 4
-	MAX_COMMAND_SIZE = 4096
-	MAX_BUFFER_SIZE  = MAX_HEADER_SIZE + MAX_COMMAND_SIZE + 1
 )
 
 var slog = newLogger("[SERVER]")
@@ -49,21 +46,33 @@ func Server(port string) error {
 				wg.Add(1)
 				defer conn.Close()
 				defer wg.Done()
-
-				data := make([]byte, MAX_BUFFER_SIZE)
-				br, rErr := conn.Read(data)
-				if rErr != nil {
-					slog.errorf("Reading from connection %v", rErr)
+				if hErr := handler(conn); hErr != nil {
+					slog.errorf("Connection closed %v", hErr)
+					return
 				}
-				slog.debugf("Read %v bytes from connection", br)
-				slog.debugf("Message from client %v", string(data))
-
-				wr, wErr := conn.Write([]byte("Hello from server!"))
-				if wErr != nil {
-					slog.errorf("Writing to connection %v", wErr)
-				}
-				slog.debugf("Wrote %v bytes to connection", wr)
 			}(tcpConn)
+		}
+	}
+}
+
+func handler(conn net.Conn) error {
+	for {
+		cmd, cmdErr := Decoder(conn)
+		if cmdErr != nil {
+			if errors.Is(cmdErr, io.EOF) {
+				return cmdErr
+			}
+			slog.errorf("Reading from connection %v", cmdErr)
+			continue
+		}
+		slog.debugf("Message from client %s", cmd)
+
+		if wErr := Encoder(conn, "Hello from server!"); wErr != nil {
+			if errors.Is(wErr, syscall.EPIPE) {
+				return wErr
+			}
+			slog.errorf("Writing to connection %v", wErr)
+			continue
 		}
 	}
 }
