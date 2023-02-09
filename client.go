@@ -57,21 +57,17 @@ func Client(port string) error {
 			continue
 		}
 
-		wr, wErr := tcpConn.Write([]byte(line))
-		if wErr != nil {
+		if wErr := Encoder(tcpConn, line); wErr != nil {
 			fmt.Fprintln(term, formatErrorOutput(term, fmt.Sprintf("Writing to server: %v", wErr)))
 			continue
 		}
-		fmt.Fprintln(term, formatOutput(term, fmt.Sprintf("Wrote %v bytes to connection", wr)))
 
-		data := make([]byte, 2048)
-		br, rErr := tcpConn.Read(data)
-		if rErr != nil {
-			fmt.Fprintln(term, formatErrorOutput(term, fmt.Sprintf("Reading from server: %v", rErr)))
+		data, dataErr := Decoder(tcpConn)
+		if dataErr != nil {
+			fmt.Fprintln(term, formatErrorOutput(term, fmt.Sprintf("Reading from server: %v", dataErr)))
 			continue
 		}
-		fmt.Fprintln(term, formatOutput(term, fmt.Sprintf("Read %v bytes from connection", br)))
-		fmt.Fprintln(term, formatServerReply(term, string(data)))
+		fmt.Fprintln(term, formatServerReply(term, data))
 	}
 }
 
@@ -80,7 +76,7 @@ func formatOutput(term *terminal.Terminal, str string) string {
 }
 
 func formatServerReply(term *terminal.Terminal, str string) string {
-	return string(term.Escape.Green) + "[REPLY] " + str + string(term.Escape.Reset)
+	return string(term.Escape.Yellow) + "[REPLY] " + str + string(term.Escape.Reset)
 }
 
 func formatErrorOutput(term *terminal.Terminal, err string) string {
