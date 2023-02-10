@@ -46,7 +46,7 @@ func Server(port string) error {
 				wg.Add(1)
 				defer conn.Close()
 				defer wg.Done()
-				if hErr := handler(conn); hErr != nil {
+				if hErr := connHandler(conn); hErr != nil {
 					slog.errorf("Connection closed %v", hErr)
 					return
 				}
@@ -55,19 +55,25 @@ func Server(port string) error {
 	}
 }
 
-func handler(conn net.Conn) error {
+func connHandler(conn net.Conn) error {
 	for {
-		cmd, cmdErr := Decoder(conn)
-		if cmdErr != nil {
-			if errors.Is(cmdErr, io.EOF) {
-				return cmdErr
+		data, dataErr := Decoder(conn)
+		if dataErr != nil {
+			if errors.Is(dataErr, io.EOF) {
+				return dataErr
 			}
-			slog.errorf("Reading from connection %v", cmdErr)
+			slog.errorf("Reading from connection %v", dataErr)
 			continue
 		}
-		slog.debugf("Message from client %s", cmd)
 
-		if wErr := Encoder(conn, "Hello from server!"); wErr != nil {
+		status, reply := requestHandler(data)
+		res, resErr := composeRes(status, reply)
+		if resErr != nil {
+			slog.errorf("Composing response %v", resErr)
+			res = validResponseOnComposeError()
+		}
+
+		if wErr := Encoder(conn, res); wErr != nil {
 			if errors.Is(wErr, syscall.EPIPE) {
 				return wErr
 			}
