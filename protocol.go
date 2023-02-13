@@ -14,7 +14,7 @@ const (
 func Encoder(wrt io.Writer, cmd []byte) error {
 	dataSize := len(cmd)
 	if dataSize < 1 || dataSize > MAX_BYTES {
-		return errors.New("Invalid cmd length")
+		return errors.New("invalid cmd length")
 	}
 	if headErr := binary.Write(wrt, binary.LittleEndian, int32(dataSize)); headErr != nil {
 		return headErr

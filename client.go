@@ -11,8 +11,6 @@ import (
 	terminal "golang.org/x/term"
 )
 
-var clog = newLogger("[CLIENT]")
-
 func Client(port string) error {
 	addr, addrErr := net.ResolveTCPAddr("tcp", port)
 	if addrErr != nil {
@@ -75,7 +73,14 @@ func Client(port string) error {
 			fmt.Fprintln(term, formatErrorOutput(term, fmt.Sprintf("Reading from server: %v", dataErr)))
 			continue
 		}
-		fmt.Fprintln(term, formatServerReply(term, data))
+		code, resStr := responseHandler(data)
+		if code == RES_ERR || code == RES_NX {
+			fmt.Fprintln(term, formatErrorOutput(term, resStr))
+		} else if code == RES_OK {
+			fmt.Fprintln(term, formatServerReply(term, resStr))
+		} else {
+			fmt.Fprintln(term, formatErrorOutput(term, "Invalid server response code"))
+		}
 	}
 }
 

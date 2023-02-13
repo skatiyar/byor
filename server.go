@@ -42,8 +42,8 @@ func Server(port string) error {
 				}
 				continue
 			}
+			wg.Add(1)
 			go func(conn net.Conn) {
-				wg.Add(1)
 				defer conn.Close()
 				defer wg.Done()
 				if hErr := connHandler(conn); hErr != nil {
