@@ -1,16 +1,15 @@
 package byor
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
-	"strings"
+	"syscall"
 
 	terminal "golang.org/x/term"
 )
-
-var clog = newLogger("[CLIENT]")
 
 func Client(port string) error {
 	addr, addrErr := net.ResolveTCPAddr("tcp", port)
@@ -52,22 +51,36 @@ func Client(port string) error {
 			return rErr
 		}
 
-		line = strings.Trim(line, " ")
-		if line == "" {
+		cmds, cmdsErr := composeReq(line)
+		if cmdsErr != nil {
+			fmt.Fprintln(term, formatErrorOutput(term, fmt.Sprintf("Parsing commands: %v", cmdsErr)))
 			continue
 		}
 
-		if wErr := Encoder(tcpConn, line); wErr != nil {
+		if wErr := Encoder(tcpConn, cmds); wErr != nil {
+			if errors.Is(wErr, syscall.EPIPE) {
+				return wErr
+			}
 			fmt.Fprintln(term, formatErrorOutput(term, fmt.Sprintf("Writing to server: %v", wErr)))
 			continue
 		}
 
 		data, dataErr := Decoder(tcpConn)
 		if dataErr != nil {
+			if errors.Is(dataErr, io.EOF) {
+				return dataErr
+			}
 			fmt.Fprintln(term, formatErrorOutput(term, fmt.Sprintf("Reading from server: %v", dataErr)))
 			continue
 		}
-		fmt.Fprintln(term, formatServerReply(term, data))
+		code, resStr := responseHandler(data)
+		if code == RES_ERR || code == RES_NX {
+			fmt.Fprintln(term, formatErrorOutput(term, resStr))
+		} else if code == RES_OK {
+			fmt.Fprintln(term, formatServerReply(term, resStr))
+		} else {
+			fmt.Fprintln(term, formatErrorOutput(term, "Invalid server response code"))
+		}
 	}
 }
 

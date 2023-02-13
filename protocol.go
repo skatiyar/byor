@@ -8,32 +8,31 @@ import (
 )
 
 const (
-	HEADER_BYTES   = 4
-	MAX_CMD_LENGTH = math.MaxInt32
+	MAX_BYTES = math.MaxInt32
 )
 
-func Encoder(wrt io.Writer, cmd string) error {
+func Encoder(wrt io.Writer, cmd []byte) error {
 	dataSize := len(cmd)
-	if dataSize < 1 || dataSize > MAX_CMD_LENGTH {
-		return errors.New("Invalid cmd length")
+	if dataSize < 1 || dataSize > MAX_BYTES {
+		return errors.New("invalid cmd length")
 	}
 	if headErr := binary.Write(wrt, binary.LittleEndian, int32(dataSize)); headErr != nil {
 		return headErr
 	}
-	if cmdErr := binary.Write(wrt, binary.LittleEndian, []byte(cmd)); cmdErr != nil {
+	if cmdErr := binary.Write(wrt, binary.LittleEndian, cmd); cmdErr != nil {
 		return cmdErr
 	}
 	return nil
 }
 
-func Decoder(rdr io.Reader) (string, error) {
+func Decoder(rdr io.Reader) ([]byte, error) {
 	var dataSize int32
 	if dErr := binary.Read(rdr, binary.LittleEndian, &dataSize); dErr != nil {
-		return "", dErr
+		return nil, dErr
 	}
 	cmd := make([]byte, dataSize)
 	if cErr := binary.Read(rdr, binary.LittleEndian, &cmd); cErr != nil {
-		return "", cErr
+		return nil, cErr
 	}
-	return string(cmd), nil
+	return cmd, nil
 }
