@@ -34,6 +34,7 @@ func (ht *htable) addEntry(key, val string) {
 	node := ht.table[index]
 	if node == nil {
 		ht.table[index] = newNode
+		ht.size += 1
 	} else {
 		for {
 			if node.key == key {
@@ -75,10 +76,12 @@ func (ht *htable) delEntry(key string) {
 		return
 	} else if node.key == key {
 		ht.table[index] = node.next
+		ht.size -= 1
 	} else {
 		for node.next != nil {
 			if node.next.key == key {
 				node.next = node.next.next
+				ht.size -= 1
 				break
 			} else {
 				node = node.next
@@ -132,9 +135,21 @@ func (hm *HMap) resize() {
 		return
 	}
 
-	var maxIndex int32
-	for i := hm.resizingPos; i <= maxIndex; i += 1 {
+	maxIndex := hm.resizingPos
+	if maxIndex+MAX_RESIZING_WORK < hm.oldbuckets.mask {
+		maxIndex += MAX_RESIZING_WORK
+	} else {
+		maxIndex = hm.oldbuckets.mask
 	}
+	for i := hm.resizingPos; i <= maxIndex; i += 1 {
+		node := hm.oldbuckets.table[i]
+		for node != nil {
+			hm.buckets.addEntry(node.key, node.value)
+			hm.oldbuckets.delEntry(node.key)
+			node = node.next
+		}
+	}
+	hm.resizingPos = maxIndex
 
 	if hm.oldbuckets.size == 0 {
 		hm.oldbuckets = nil
@@ -146,24 +161,30 @@ func (hm *HMap) Get(key string) string {
 	hm.mutex.RLock()
 	defer hm.mutex.RUnlock()
 
-	hm.resize()
-
-	value := hm.buckets.getEntry(key)
-	if hm.oldbuckets != nil {
-		value = hm.oldbuckets.getEntry(key)
+	if value := hm.buckets.getEntry(key); value != "" {
+		return value
 	}
-	return value
+	if hm.oldbuckets != nil {
+		return hm.oldbuckets.getEntry(key)
+	}
+	return ""
 }
 
 func (hm *HMap) Put(key, val string) {
 	hm.mutex.Lock()
 	defer hm.mutex.Unlock()
+
 	loadFactor := float32(hm.buckets.size) / float32(hm.buckets.mask+1)
 	if loadFactor > MAX_LOAD_FACTOR {
 		hm.startResize()
 	}
-	hm.buckets.addEntry(key, val)
+
 	hm.resize()
+
+	hm.buckets.addEntry(key, val)
+	if hm.oldbuckets != nil {
+		hm.oldbuckets.delEntry(key)
+	}
 }
 
 func (hm *HMap) Delete(key string) {
@@ -177,8 +198,6 @@ func (hm *HMap) Delete(key string) {
 		hm.oldbuckets.delEntry(key)
 	}
 }
-
-func (hm *HMap) For(func(key, val string)) {}
 
 func (hm *HMap) Size() int32 {
 	hm.mutex.RLock()

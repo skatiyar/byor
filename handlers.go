@@ -1,6 +1,9 @@
 package byor
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 const (
 	RES_OK  = 0 // Status OK
@@ -46,7 +49,8 @@ func requestHandler(req []byte) (int, string) {
 		} else {
 			return RES_ERR, "invalid parameters for command: del"
 		}
-	case "keys":
+	case "size":
+		return RES_OK, strconv.Itoa(int(safeMap.Size()))
 	default:
 		return RES_ERR, "Invalid command"
 	}
