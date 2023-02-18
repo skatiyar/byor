@@ -90,6 +90,18 @@ func (ht *htable) delEntry(key string) {
 	}
 }
 
+func (ht *htable) listKeys() []string {
+	keys := make([]string, 0)
+	for i := 0; i < len(ht.table); i += 1 {
+		node := ht.table[i]
+		for node != nil {
+			keys = append(keys, node.key)
+			node = node.next
+		}
+	}
+	return keys
+}
+
 type HMap struct {
 	buckets     *htable
 	oldbuckets  *htable
@@ -208,6 +220,17 @@ func (hm *HMap) Size() int32 {
 		size += hm.oldbuckets.size
 	}
 	return size
+}
+
+func (hm *HMap) Keys() []string {
+	hm.mutex.RLock()
+	defer hm.mutex.RUnlock()
+
+	keys := hm.buckets.listKeys()
+	if hm.oldbuckets != nil {
+		keys = append(keys, hm.oldbuckets.listKeys()...)
+	}
+	return keys
 }
 
 func (hm *HMap) Clear() {

@@ -1,7 +1,6 @@
 package byor
 
 import (
-	"strconv"
 	"strings"
 )
 
@@ -13,13 +12,13 @@ const (
 
 var safeMap = NewHashMap(128)
 
-func requestHandler(req []byte) (int, string) {
+func requestHandler(req []byte) (int, interface{}) {
 	cmds, parseErr := parseReq(req)
 	if parseErr != nil {
 		return RES_ERR, parseErr.Error()
 	}
 	if len(cmds) < 1 {
-		return RES_ERR, "Invalid number of commands"
+		return RES_ERR, "invalid number of commands"
 	}
 	switch strings.ToLower(cmds[0]) {
 	case "ping":
@@ -50,13 +49,18 @@ func requestHandler(req []byte) (int, string) {
 			return RES_ERR, "invalid parameters for command: del"
 		}
 	case "size":
-		return RES_OK, strconv.Itoa(int(safeMap.Size()))
+		return RES_OK, safeMap.Size()
+	case "keys":
+		return RES_OK, safeMap.Keys()
+	case "purge":
+		safeMap.Clear()
+		return RES_OK, "hashmap purged"
 	default:
-		return RES_ERR, "Invalid command"
+		return RES_ERR, "invalid command"
 	}
 }
 
-func responseHandler(res []byte) (int, string) {
+func responseHandler(res []byte) (int, []string) {
 	return parseRes(res)
 }
 

@@ -73,11 +73,15 @@ func Client(port string) error {
 			fmt.Fprintln(term, formatErrorOutput(term, fmt.Sprintf("Reading from server: %v", dataErr)))
 			continue
 		}
-		code, resStr := responseHandler(data)
+		code, resStrs := responseHandler(data)
 		if code == RES_ERR || code == RES_NX {
-			fmt.Fprintln(term, formatErrorOutput(term, resStr))
+			for i := 0; i < len(resStrs); i += 1 {
+				fmt.Fprintln(term, formatErrorOutput(term, resStrs[i]))
+			}
 		} else if code == RES_OK {
-			fmt.Fprintln(term, formatServerReply(term, resStr))
+			for i := 0; i < len(resStrs); i += 1 {
+				fmt.Fprintln(term, formatServerReply(term, resStrs[i]))
+			}
 		} else {
 			fmt.Fprintln(term, formatErrorOutput(term, "Invalid server response code"))
 		}
