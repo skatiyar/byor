@@ -3,6 +3,7 @@ package byor
 import (
 	"errors"
 	"math"
+	"strconv"
 	"strings"
 )
 
@@ -13,62 +14,114 @@ const (
 	MAX_STR_LENGTH = math.MaxInt32 - LEN_BYTES
 )
 
-func composeReq(raw string) ([]byte, error) {
-	strs := strings.Split(raw, " ")
-	result := make([]byte, 0)
-	numCmds := 0
-	for idx := range strs {
-		cmd := strings.Trim(strs[idx], " ")
-		lenCmd := len(cmd)
-		if lenCmd >= 1 {
-			result = appendVarint(result, int32(lenCmd))
-			result = append(result, []byte(cmd)...)
-			numCmds += 1
-		}
-	}
-	if numCmds != 0 && len(result) <= MAX_STR_LENGTH {
-		numBin := make([]byte, 0)
-		numBin = appendVarint(numBin, int32(numCmds))
-		return append(numBin, result...), nil
-	}
+const (
+	SER_NIL = 0
+	SER_ERR = 1
+	SER_STR = 2
+	SER_INT = 3
+	SER_ARR = 4
+)
 
-	return nil, errors.New("invalid command")
+func composeReq(raw string) ([]byte, error) {
+	return serializeStringSlice(strings.Split(raw, " "))
 }
 
 func parseReq(raw []byte) ([]string, error) {
-	if len(raw) < (LEN_BYTES * 2) {
-		return nil, errors.New("invalid command")
-	}
-	numCmds := int(getVarint(raw[0:4]))
-	cmds := make([]string, 0)
-	pointer := 4
-	for pointer < len(raw) {
-		cmdLen := int(getVarint(raw[pointer : pointer+4]))
-		pointer += 4
-		cmds = append(cmds, string(raw[pointer:pointer+cmdLen]))
-		pointer += cmdLen
-	}
-	if numCmds < len(cmds) || numCmds > len(cmds) {
-		return nil, errors.New("invalid expected number of commands")
-	}
-	return cmds, nil
+	return deserializeStringSlice(raw)
 }
 
-func composeRes(status int, raw string) ([]byte, error) {
-	if len(raw) > MAX_STR_LENGTH {
-		return nil, errors.New("invalid length for response: " + raw)
-	}
+func composeRes(status int, raw interface{}) ([]byte, error) {
 	res := make([]byte, 0)
 	res = appendVarint(res, int32(status))
-	res = append(res, []byte(raw)...)
+
+	switch val := raw.(type) {
+	case nil:
+		res = appendVarint(res, SER_NIL)
+	case int32:
+		res = appendVarint(res, SER_INT)
+		res = appendVarint(res, val)
+	case int:
+		res = appendVarint(res, SER_INT)
+		res = appendVarint(res, int32(val))
+	case string:
+		if len(val) > MAX_STR_LENGTH {
+			return nil, errors.New("invalid length for response: " + val)
+		}
+		res = appendVarint(res, SER_STR)
+		res = append(res, []byte(val)...)
+	case []string:
+		res = appendVarint(res, SER_ARR)
+		sbytes, sErr := serializeStringSlice(val)
+		if sErr != nil {
+			return nil, sErr
+		}
+		res = append(res, sbytes...)
+	default:
+		return nil, errors.New("invalid data type")
+	}
+
 	return res, nil
 }
 
-func parseRes(raw []byte) (int, string) {
+func parseRes(raw []byte) (int, []string) {
 	if len(raw) < LEN_BYTES {
-		return RES_ERR, "invalid server response length"
+		return RES_ERR, []string{"invalid server response length"}
 	}
+
 	status := int(getVarint(raw[0:4]))
-	reply := string(raw[4:])
-	return status, reply
+	dtype := getVarint(raw[4:8])
+	switch dtype {
+	case SER_NIL:
+		return status, []string{"<nil>"}
+	case SER_INT:
+		return status, []string{strconv.Itoa(int(getVarint(raw[8:])))}
+	case SER_STR:
+		return status, []string{string(raw[8:])}
+	case SER_ARR:
+		strs, strsErr := deserializeStringSlice(raw[8:])
+		if strsErr != nil {
+			return status, []string{strsErr.Error()}
+		}
+		return status, strs
+	default:
+		return status, []string{"invalid data type received"}
+	}
+}
+
+func serializeStringSlice(raw []string) ([]byte, error) {
+	result := make([]byte, 0)
+	numStrs := 0
+	for idx := range raw {
+		lenCmd := len(raw[idx])
+		if lenCmd > 0 {
+			result = appendVarint(result, int32(lenCmd))
+			result = append(result, []byte(raw[idx])...)
+			numStrs += 1
+		}
+	}
+	if numStrs != 0 && len(result) <= MAX_STR_LENGTH {
+		numBin := make([]byte, 0)
+		numBin = appendVarint(numBin, int32(numStrs))
+		return append(numBin, result...), nil
+	}
+	return nil, errors.New("invalid string slice")
+}
+
+func deserializeStringSlice(raw []byte) ([]string, error) {
+	if len(raw) < (LEN_BYTES * 2) {
+		return nil, errors.New("invalid command")
+	}
+	numStrs := int(getVarint(raw[0:4]))
+	strs := make([]string, 0)
+	pointer := 4
+	for pointer < len(raw) {
+		strLen := int(getVarint(raw[pointer : pointer+4]))
+		pointer += 4
+		strs = append(strs, string(raw[pointer:pointer+strLen]))
+		pointer += strLen
+	}
+	if numStrs < len(strs) || numStrs > len(strs) {
+		return nil, errors.New("invalid expected number of commands")
+	}
+	return strs, nil
 }
