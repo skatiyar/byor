@@ -1,7 +1,5 @@
 ## Build your own Redis
 
----
-
 Programming exercise to brush up Golang skills and get basic understanding of Redis internals.
 
 This follows [Build your own Redis](https://build-your-own.org/redis) guide religiously with few caveats.
