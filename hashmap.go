@@ -1,6 +1,7 @@
 package byor
 
 import (
+	"hash/fnv"
 	"math"
 	"sync"
 )
@@ -22,7 +23,10 @@ type htable struct {
 }
 
 func (ht *htable) keyIndex(key string) int {
-	return len(key) & int(ht.mask)
+	shash := fnv.New32()
+	shash.Write([]byte(key))
+	sum := shash.Sum32()
+	return int(sum) & int(ht.mask)
 }
 
 func (ht *htable) addEntry(key, val string) {
